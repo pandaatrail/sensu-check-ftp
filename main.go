@@ -2,49 +2,52 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
+	"time"
 
-	"github.com/sensu-community/sensu-plugin-sdk/sensu"
-	"github.com/sensu/sensu-go/types",
 	"github.com/jlaffaye/ftp"
+	"github.com/sensu-community/sensu-plugin-sdk/sensu"
+	"github.com/sensu/sensu-go/types"
 )
 
 // Config represents the check plugin config.
 type Config struct {
 	sensu.PluginConfig
-	Example string
+	Host string
+	Port int
+	User string
+	Password string
 }
 
 var (
 	plugin = Config{
 		PluginConfig: sensu.PluginConfig{
 			Name:     "sensu-check-ftp",
-			Short:    "FTP/SFT Checks for sensu go",
+			Short:    "FTP/SFTP Checks for sensu go",
 			Keyspace: "sensu.io/plugins/sensu-check-ftp/config",
 		},
 	}
 
 	options = []*sensu.PluginConfigOption{
-		&sensu.PluginConfigOption{
+		{
 			Path:      "host",
 			Env:       "CHECK_EXAMPLE",
 			Argument:  "host",
-			Shorthand: "h",
+			Shorthand: "z",
 			Default:   "localhost",
 			Usage:     "The host to connect to",
 			Value:     &plugin.Host,
 		},
-		&sensu.PluginConfigOption{
+		{
 			Path:      "port",
 			Env:       "CHECK_EXAMPLE",
 			Argument:  "port",
 			Shorthand: "p",
-			Default:   "21",
+			Default:   21,
 			Usage:     "The port to use",
 			Value:     &plugin.Port,
 		},
-		&sensu.PluginConfigOption{
+		{
 			Path:      "user",
 			Env:       "CHECK_EXAMPLE",
 			Argument:  "user",
@@ -53,20 +56,20 @@ var (
 			Usage:     "The user to use",
 			Value:     &plugin.User,
 		},
-		&sensu.PluginConfigOption{
+		{
 			Path:      "password",
 			Env:       "CHECK_EXAMPLE",
 			Argument:  "password",
 			Shorthand: "P",
 			Default:   "password",
 			Usage:     "The password for this user",
-			Value:     &plugin.User,
+			Value:     &plugin.Password,
 		},
 	}
 )
 
 func main() {
-	check := sensu.NewGoCheck(&plugin.PluginConfig, options, checkArgs, executeCheck, useStdin)
+	check := sensu.NewGoCheck(&plugin.PluginConfig, options, checkArgs, executeCheck, false)
 	check.Execute()
 }
 
@@ -74,20 +77,50 @@ func checkArgs(event *types.Event) (int, error) {
 	return sensu.CheckStateOK, nil
 }
 
+
+
 func executeCheck(event *types.Event) (int, error) {
-	c, err := ftp.Dial("%s:%d", ftp.DialWithTimeout(5*time.Second), plugin.Host, plugin.Port)
+
+	
+	params := fmt.Sprintf("%s:%d", plugin.Host, plugin.Port)
+
+	c, err := ftp.Dial(params, ftp.DialWithTimeout(5*time.Second))
+	// Do something with the FTP conn
+	if err != nil {
+		fmt.Printf("Conn: %s", err.Error())
+		os.Exit(1)
+	}
+
+	err = c.Login(plugin.User, plugin.Password)
+	if err != nil {
+		fmt.Printf("Login: %s", err.Error())
+		os.Exit(1)
+	}
+
+	err = c.Quit()
+	if err != nil {
+		fmt.Printf("Quit: %s", err.Error())
+		os.Exit(1)
+	}
+
+	os.Exit(0)
+	return 0, nil
+
+	/*
+	err = c.Login("test", "test")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	err = c.Login("%s", "%s", plugin.User, plugin.Password)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// Do something with the FTP conn
 	if err := c.Quit(); err != nil {
 		log.Fatal(err)
 	}
+	
+	if err != nil {
+		log.Fatal(err)
+	}
+
+
 	return sensu.CheckStateOK, nil
+	*/
 }
